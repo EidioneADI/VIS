@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full bg-slate-950 text-slate-100">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visualizador Interactivo de Series de Fourier - IPN ESIME</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <!-- MathJax for LaTeX Rendering -->
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        fourier: {
+                            red: '#ef4444',
+                            black: '#334155',
+                            accent: '#3b82f6',
+                            bg: '#0f172a'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+    </style>
+</head>
+<body class="h-full flex flex-col font-sans antialiased bg-slate-950 text-slate-100 selection:bg-rose-500 selection:text-white">
+
+    <!-- Header Header -->
+    <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur px-6 py-4 flex flex-wrap justify-between items-center gap-4">
+        <div class="flex items-center gap-3">
+            <div class="p-2 bg-rose-500/10 border border-rose-500/20 rounded-lg text-rose-500">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                </svg>
+            </div>
+            <div>
+                <h1 class="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+                    Laboratorio de Fourier <span class="text-xs font-semibold px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 border border-rose-500/30">IPN ESIME</span>
+                </h1>
+                <p class="text-xs text-slate-400">Análisis Harmónico y Reconstrucción de Señales en Tiempo Real</p>
+            </div>
+        </div>
+
+        <!-- Presets / Quick Actions -->
+        <div class="flex items-center gap-2 bg-slate-950 p-1.5 rounded-xl border border-slate-800">
+            <button id="btnSawtooth" onclick="setWaveform('sawtooth')" class="wave-btn px-4 py-2 text-xs font-medium rounded-lg transition-all bg-rose-500 text-white shadow-lg shadow-rose-500/20">
+                Diente de Sierra
+            </button>
+            <button id="btnSquare" onclick="setWaveform('square')" class="wave-btn px-4 py-2 text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all">
+                Cuadrada
+            </button>
+            <button id="btnTriangle" onclick="setWaveform('triangle')" class="wave-btn px-4 py-2 text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all">
+                Triangular
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 p-6 grid grid-cols-1 lg:grid-cols-4 gap-6 max-w-[1920px] w-full mx-auto overflow-y-auto">
+        
+        <!-- Controls Sidebar -->
+        <aside class="lg:col-span-1 space-y-6 flex flex-col">
+            <!-- Controls Panel -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-6">
+                <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400 border-b border-slate-800 pb-3 flex items-center gap-2">
+                    <svg class="w-4 h-4 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
+                    Parámetros de la Señal
+                </h2>
+
+                <!-- Control: Armónicos N -->
+                <div class="space-y-2">
+                    <div class="flex justify-between items-center text-sm">
+                        <label for="sliderN" class="font-medium text-slate-300">Número de Armónicos ($N$)</label>
+                        <span id="valN" class="font-mono text-xs px-2 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20 font-bold">10</span>
+                    </div>
+                    <input type="range" id="sliderN" min="1" max="25" value="10" class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-rose-500">
+                    <div class="flex justify-between text-[10px] text-slate-500 font-mono">
+                        <span>N=1 (Fundamental)</span>
+                        <span>N=25 (Alta precisión)</span>
+                    </div>
+                </div>
+
+                <!-- Control: Frecuencia f -->
+                <div class="space-y-2">
+                    <div class="flex justify-between items-center text-sm">
+                        <label for="sliderF" class="font-medium text-slate-300">Frecuencia ($f_0$)</label>
+                        <span id="valF" class="font-mono text-xs px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 font-bold">1.0 Hz</span>
+                    </div>
+                    <input type="range" id="sliderF" min="0.2" max="5.0" step="0.1" value="1.0" class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-500">
+                    <div class="flex justify-between text-[10px] text-slate-500 font-mono">
+                        <span>0.2 Hz</span>
+                        <span>5.0 Hz</span>
+                    </div>
+                </div>
+
+                <!-- Control: Amplitud A -->
+                <div class="space-y-2">
+                    <div class="flex justify-between items-center text-sm">
+                        <label for="sliderA" class="font-medium text-slate-300">Amplitud ($A$)</label>
+                        <span id="valA" class="font-mono text-xs px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">1.0</span>
+                    </div>
+                    <input type="range" id="sliderA" min="0.2" max="2.0" step="0.1" value="1.0" class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500">
+                    <div class="flex justify-between text-[10px] text-slate-500 font-mono">
+                        <span>0.2</span>
+                        <span>2.0</span>
+                    </div>
+                </div>
+
+                <!-- Toggle Options -->
+                <div class="pt-4 border-t border-slate-800 space-y-3">
+                    <label class="flex items-center justify-between text-xs text-slate-300 cursor-pointer">
+                        <span>Mostrar Onda Ideal ($f(t)$)</span>
+                        <input type="checkbox" id="chkIdeal" checked class="rounded border-slate-700 text-rose-500 focus:ring-rose-500 bg-slate-950">
+                    </label>
+                    <label class="flex items-center justify-between text-xs text-slate-300 cursor-pointer">
+                        <span>Animación de Tiempo Real</span>
+                        <input type="checkbox" id="chkAnimate" checked class="rounded border-slate-700 text-rose-500 focus:ring-rose-500 bg-slate-950">
+                    </label>
+                </div>
+            </div>
+
+            <!-- Gibbs Effect Banner / Info Card -->
+            <div id="gibbsCard" class="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 text-amber-200/90 text-xs leading-relaxed space-y-1.5">
+                <div class="flex items-center gap-1.5 font-semibold text-amber-400">
+                    <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                    <span>Fenómeno de Gibbs Detectado</span>
+                </div>
+                <p id="gibbsText">
+                    En las discontinuidades de salto, la serie de Fourier presenta un sobrepico residual del <strong>~9%</strong> sin importar cuán grande sea $N$.
+                </p>
+            </div>
+        </aside>
+
+        <!-- Visualization Canvas Area -->
+        <section class="lg:col-span-3 flex flex-col gap-6">
+            
+            <!-- Canvas 1: Time Domain Graph -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 flex flex-col flex-1 min-h-[340px] relative overflow-hidden shadow-xl">
+                <div class="flex justify-between items-center mb-3 z-10">
+                    <h3 class="text-sm font-semibold text-slate-200 flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block"></span>
+                        Dominio del Tiempo: $f(t)$ vs Serie de Fourier $S_N(t)$
+                    </h3>
+                    <div class="flex items-center gap-4 text-xs font-mono">
+                        <span class="flex items-center gap-1.5 text-slate-400">
+                            <span class="w-3 h-0.5 border-t-2 border-dashed border-slate-400 inline-block"></span> Señal Ideal
+                        </span>
+                        <span class="flex items-center gap-1.5 text-rose-400">
+                            <span class="w-3 h-0.5 bg-rose-500 inline-block"></span> Reconstrucción Fourier ($N$)
+                        </span>
+                    </div>
+                </div>
+
+                <div class="flex-1 relative w-full h-full min-h-[260px] rounded-xl bg-slate-950/80 border border-slate-800/80 overflow-hidden">
+                    <canvas id="canvasTime"></canvas>
+                </div>
+            </div>
+
+            <!-- Canvas 2: Frequency Spectrum Graph -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 flex flex-col min-h-[240px] relative overflow-hidden shadow-xl">
+                <div class="flex justify-between items-center mb-3 z-10">
+                    <h3 class="text-sm font-semibold text-slate-200 flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-blue-500 inline-block"></span>
+                        Espectro de Frecuencia: Magnitud de Armónicos $|b_n|$
+                    </h3>
+                    <span class="text-xs font-mono text-slate-500" id="harmonicCountLabel">
+                        Muestra de 1 a N armónicos
+                    </span>
+                </div>
+
+                <div class="flex-1 relative w-full h-full min-h-[160px] rounded-xl bg-slate-950/80 border border-slate-800/80 overflow-hidden">
+                    <canvas id="canvasSpectrum"></canvas>
+                </div>
+            </div>
+
+            <!-- Mathematical Formula Footer Card -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                <h4 class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-2">
+                    <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M12 7h.01"/></svg>
+                    Representación Matemática de la Serie
+                </h4>
+                <div id="formulaContainer" class="bg-slate-950 p-4 rounded-xl border border-slate-800 text-center overflow-x-auto min-h-[60px] flex items-center justify-center">
+                    <div id="mathFormula" class="text-sm text-slate-200 font-mono">
+                        <!-- Loaded via JS -->
+                    </div>
+                </div>
+            </div>
+
+        </section>
+    </main>
+
+    <!-- App Script -->
+    <script>
+        // State Management
+        const state = {
+            waveform: 'sawtooth', // 'sawtooth', 'square', 'triangle'
+            N: 10,
+            f0: 1.0,
+            amplitude: 1.0,
+            showIdeal: true,
+            animate: true,
+            timeOffset: 0
+        };
+
+        // DOM Elements
+        const sliderN = document.getElementById('sliderN');
+        const sliderF = document.getElementById('sliderF');
+        const sliderA = document.getElementById('sliderA');
+        const valN = document.getElementById('valN');
+        const valF = document.getElementById('valF');
+        const valA = document.getElementById('valA');
+        const chkIdeal = document.getElementById('chkIdeal');
+        const chkAnimate = document.getElementById('chkAnimate');
+        const gibbsCard = document.getElementById('gibbsCard');
+        const gibbsText = document.getElementById('gibbsText');
+        const mathFormula = document.getElementById('mathFormula');
+
+        // Canvases
+        const canvasTime = document.getElementById('canvasTime');
+        const ctxTime = canvasTime.getContext('2d');
+        const canvasSpec = document.getElementById('canvasSpectrum');
+        const ctxSpec = canvasSpec.getContext('2d');
+
+        // Math Formulas Definitions for MathJax
+        const FORMULAS = {
+            sawtooth: `$$f(t) = \\frac{A}{2} - \\frac{A}{\\pi} \\sum_{n=1}^{N} \\frac{1}{n} \\sin(2\\pi n f_0 t)$$`,
+            square: `$$f(t) = \\frac{4A}{\\pi} \\sum_{n=1,3,5,...}^{N} \\frac{1}{n} \\sin(2\\pi n f_0 t)$$`,
+            triangle: `$$f(t) = \\frac{8A}{\\pi^2} \\sum_{n=1,3,5,...}^{N} \\frac{(-1)^{(n-1)/2}}{n^2} \\sin(2\\pi n f_0 t)$$`
+        };
+
+        // Initialize UI Events
+        function initEvents() {
+            sliderN.addEventListener('input', (e) => {
+                state.N = parseInt(e.target.value);
+                valN.textContent = state.N;
+                updateGibbsCard();
+            });
+
+            sliderF.addEventListener('input', (e) => {
+                state.f0 = parseFloat(e.target.value);
+                valF.textContent = `${state.f0.toFixed(1)} Hz`;
+            });
+
+            sliderA.addEventListener('input', (e) => {
+                state.amplitude = parseFloat(e.target.value);
+                valA.textContent = state.amplitude.toFixed(1);
+            });
+
+            chkIdeal.addEventListener('change', (e) => {
+                state.showIdeal = e.target.checked;
+            });
+
+            chkAnimate.addEventListener('change', (e) => {
+                state.animate = e.target.checked;
+            });
+
+            window.addEventListener('resize', resizeCanvases);
+        }
+
+        // Set Active Waveform
+        window.setWaveform = function(type) {
+            state.waveform = type;
+            
+            // Toggle Button Styles
+            document.querySelectorAll('.wave-btn').forEach(btn => {
+                btn.className = 'wave-btn px-4 py-2 text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all';
+            });
+
+            const activeBtn = document.getElementById(`btn${type.charAt(0).toUpperCase() + type.slice(1)}`);
+            if (activeBtn) {
+                activeBtn.className = 'wave-btn px-4 py-2 text-xs font-medium rounded-lg transition-all bg-rose-500 text-white shadow-lg shadow-rose-500/20';
+            }
+
+            updateFormula();
+            updateGibbsCard();
+        };
+
+        function updateFormula() {
+            mathFormula.innerHTML = FORMULAS[state.waveform];
+            if (window.MathJax) {
+                MathJax.typesetPromise([mathFormula]).catch(err => console.log(err));
+            }
+        }
+
+        function updateGibbsCard() {
+            if (state.waveform === 'triangle') {
+                gibbsCard.className = 'bg-slate-800/40 border border-slate-800 rounded-2xl p-4 text-slate-400 text-xs leading-relaxed space-y-1.5';
+                gibbsCard.querySelector('div').className = 'flex items-center gap-1.5 font-semibold text-slate-300';
+                gibbsText.innerHTML = 'La onda triangular no presenta el Fenómeno de Gibbs debido a su continuidad y rápido decaimiento armónico ($\\propto 1/n^2$).';
+            } else {
+                gibbsCard.className = 'bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 text-amber-200/90 text-xs leading-relaxed space-y-1.5';
+                gibbsCard.querySelector('div').className = 'flex items-center gap-1.5 font-semibold text-amber-400';
+                gibbsText.innerHTML = `En las discontinuidades de la onda <strong>${state.waveform === 'square' ? 'cuadrada' : 'diente de sierra'}</strong>, existe un sobreimpulso constante del <strong>~9%</strong> (Fenómeno de Gibbs) visible al aumentar $N = ${state.N}$.`;
+            }
+            if (window.MathJax) MathJax.typesetPromise([gibbsText]);
+        }
+
+        // Resize Canvases to Parent Container
+        function resizeCanvases() {
+            [canvasTime, canvasSpec].forEach(canvas => {
+                const rect = canvas.parentElement.getBoundingClientRect();
+                canvas.width = rect.width * window.devicePixelRatio;
+                canvas.height = rect.height * window.devicePixelRatio;
+            });
+        }
+
+        // --- MATHEMATICAL HARMONIC EVALUATIONS ---
+        function getIdealValue(t, A, f0, type) {
+            const T = 1 / f0;
+            const tau = ((t % T) + T) % T; // Normalize to [0, T)
+            const norm = tau / T; // [0, 1)
+
+            if (type === 'sawtooth') {
+                return A * (norm - 0.5) * 2; // Ramp from -A to A
+            } else if (type === 'square') {
+                return norm < 0.5 ? A : -A;
+            } else if (type === 'triangle') {
+                return norm < 0.5 ? A * (4 * norm - 1) : A * (3 - 4 * norm);
+            }
+            return 0;
+        }
+
+        function getFourierSum(t, A, f0, N, type) {
+            let sum = 0;
+            const w0 = 2 * Math.PI * f0;
+
+            if (type === 'sawtooth') {
+                for (let n = 1; n <= N; n++) {
+                    sum -= (A / (n * Math.PI)) * Math.sin(n * w0 * t);
+                }
+                // Add DC offset if defined as A/2, standard zero-centered is:
+                // sum = sum (zero-centered amplitude)
+            } else if (type === 'square') {
+                for (let k = 0; k < N; k++) {
+                    const n = 2 * k + 1; // Odd harmonics
+                    sum += (4 * A / (n * Math.PI)) * Math.sin(n * w0 * t);
+                }
+            } else if (type === 'triangle') {
+                for (let k = 0; k < N; k++) {
+                    const n = 2 * k + 1; // Odd harmonics
+                    const sign = (k % 2 === 0) ? 1 : -1;
+                    sum += (8 * A / (Math.PI * Math.PI * n * n)) * sign * Math.sin(n * w0 * t);
+                }
+            }
+            return sum;
+        }
+
+        function getHarmonicMagnitudes(A, N, type) {
+            const harmonics = [];
+            if (type === 'sawtooth') {
+                for (let n = 1; n <= N; n++) {
+                    harmonics.push({ n: n, mag: A / (n * Math.PI) });
+                }
+            } else if (type === 'square') {
+                for (let k = 0; k < N; k++) {
+                    const n = 2 * k + 1;
+                    harmonics.push({ n: n, mag: 4 * A / (n * Math.PI) });
+                }
+            } else if (type === 'triangle') {
+                for (let k = 0; k < N; k++) {
+                    const n = 2 * k + 1;
+                    harmonics.push({ n: n, mag: 8 * A / (Math.PI * Math.PI * n * n) });
+                }
+            }
+            return harmonics;
+        }
+
+        // --- RENDER TIME DOMAIN CANVAS ---
+        function drawTimeDomain(time) {
+            const width = canvasTime.width;
+            const height = canvasTime.height;
+            const ctx = ctxTime;
+            const dpr = window.devicePixelRatio;
+
+            ctx.clearRect(0, 0, width, height);
+
+            // Grid Layout
+            const padding = 40 * dpr;
+            const plotW = width - 2 * padding;
+            const plotH = height - 2 * padding;
+            const centerY = padding + plotH / 2;
+
+            // Draw Grid Lines & Axes
+            ctx.strokeStyle = '#1e293b';
+            ctx.lineWidth = 1 * dpr;
+            ctx.beginPath();
+            
+            // Horizontal Center Line
+            ctx.moveTo(padding, centerY);
+            ctx.lineTo(width - padding, centerY);
+            
+            // Vertical Grid Lines (Time)
+            const numLines = 6;
+            for (let i = 0; i <= numLines; i++) {
+                const x = padding + (i / numLines) * plotW;
+                ctx.moveTo(x, padding);
+                ctx.lineTo(x, height - padding);
+            }
+            ctx.stroke();
+
+            // Scale Calculations: Show 3 full periods for reference
+            const visiblePeriods = 3;
+            const tSpan = visiblePeriods / state.f0;
+            const tStart = state.animate ? time * 0.0005 : 0;
+            const tEnd = tStart + tSpan;
+
+            const yScale = (plotH / 2) / (state.amplitude * 1.5);
+
+            // 1. Draw Ideal Waveform (Dashed Dark Line)
+            if (state.showIdeal) {
+                ctx.save();
+                ctx.strokeStyle = '#475569';
+                ctx.lineWidth = 1.5 * dpr;
+                ctx.setLineDash([6 * dpr, 4 * dpr]);
+                ctx.beginPath();
+
+                const steps = 1000;
+                for (let i = 0; i <= steps; i++) {
+                    const px = padding + (i / steps) * plotW;
+                    const t = tStart + (i / steps) * tSpan;
+                    const yVal = getIdealValue(t, state.amplitude, state.f0, state.waveform);
+                    const py = centerY - yVal * yScale;
+
+                    if (i === 0) ctx.moveTo(px, py);
+                    else ctx.lineTo(px, py);
+                }
+                ctx.stroke();
+                ctx.restore();
+            }
+
+            // 2. Draw Fourier Series Reconstruction (Solid Red Line)
+            ctx.save();
+            ctx.strokeStyle = '#ef4444';
+            ctx.lineWidth = 2.5 * dpr;
+            ctx.shadowColor = 'rgba(239, 68, 68, 0.4)';
+            ctx.shadowBlur = 8 * dpr;
+            ctx.beginPath();
+
+            const steps = 1000;
+            for (let i = 0; i <= steps; i++) {
+                const px = padding + (i / steps) * plotW;
+                const t = tStart + (i / steps) * tSpan;
+                const yVal = getFourierSum(t, state.amplitude, state.f0, state.N, state.waveform);
+                const py = centerY - yVal * yScale;
+
+                if (i === 0) ctx.moveTo(px, py);
+                else ctx.lineTo(px, py);
+            }
+            ctx.stroke();
+            ctx.restore();
+
+            // Axis Labels
+            ctx.fillStyle = '#64748b';
+            ctx.font = `${10 * dpr}px JetBrains Mono`;
+            ctx.fillText('+A', 10 * dpr, centerY - state.amplitude * yScale + 4 * dpr);
+            ctx.fillText('-A', 10 * dpr, centerY + state.amplitude * yScale + 4 * dpr);
+            ctx.fillText('0', 15 * dpr, centerY + 4 * dpr);
+            ctx.fillText('Tiempo (t)', width - padding, height - 10 * dpr);
+        }
+
+        // --- RENDER SPECTRUM CANVAS ---
+        function drawSpectrum() {
+            const width = canvasSpec.width;
+            const height = canvasSpec.height;
+            const ctx = ctxSpec;
+            const dpr = window.devicePixelRatio;
+
+            ctx.clearRect(0, 0, width, height);
+
+            const padding = 35 * dpr;
+            const plotW = width - 2 * padding;
+            const plotH = height - 2 * padding;
+            const baseY = height - padding;
+
+            // Grid Lines
+            ctx.strokeStyle = '#1e293b';
+            ctx.lineWidth = 1 * dpr;
+            ctx.beginPath();
+            ctx.moveTo(padding, baseY);
+            ctx.lineTo(width - padding, baseY);
+            ctx.stroke();
+
+            const harmonics = getHarmonicMagnitudes(state.amplitude, state.N, state.waveform);
+            if (harmonics.length === 0) return;
+
+            const maxMag = state.amplitude * 1.2;
+            const maxHarmonicN = harmonics[harmonics.length - 1].n;
+            const barWidth = Math.max(2 * dpr, (plotW / (maxHarmonicN + 2)) * 0.4);
+
+            // Draw Stem Bars
+            harmonics.forEach(h => {
+                const xRatio = h.n / (maxHarmonicN + 1);
+                const px = padding + xRatio * plotW;
+                const hHeight = (h.mag / maxMag) * plotH;
+                const py = baseY - hHeight;
+
+                // Stem Line
+                ctx.strokeStyle = '#3b82f6';
+                ctx.lineWidth = 2 * dpr;
+                ctx.beginPath();
+                ctx.moveTo(px, baseY);
+                ctx.lineTo(px, py);
+                ctx.stroke();
+
+                // Top Circle Marker
+                ctx.fillStyle = '#60a5fa';
+                ctx.beginPath();
+                ctx.arc(px, py, 3.5 * dpr, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Harmonic Label (N) below axis
+                if (harmonics.length <= 15 || h.n % 2 !== 0) {
+                    ctx.fillStyle = '#64748b';
+                    ctx.font = `${9 * dpr}px JetBrains Mono`;
+                    ctx.textAlign = 'center';
+                    ctx.fillText(`${h.n}`, px, baseY + 15 * dpr);
+                }
+            });
+
+            // Y-Axis Labels
+            ctx.fillStyle = '#64748b';
+            ctx.font = `${9 * dpr}px JetBrains Mono`;
+            ctx.textAlign = 'left';
+            ctx.fillText(`Magnitud |b_n|`, 10 * dpr, 15 * dpr);
+            ctx.fillText(`f_0 = ${state.f0}Hz`, width - 70 * dpr, 15 * dpr);
+        }
+
+        // Animation Loop
+        let animationFrameId;
+        function animate(timestamp) {
+            drawTimeDomain(timestamp);
+            drawSpectrum();
+            animationFrameId = requestAnimationFrame(animate);
+        }
+
+        // Bootstrapping App
+        window.onload = () => {
+            initEvents();
+            resizeCanvases();
+            updateFormula();
+            updateGibbsCard();
+            requestAnimationFrame(animate);
+        };
+    </script>
+</body>
+</html>
